@@ -19,8 +19,10 @@ pub struct OAuthConfiguration<'a> {
     pub extra_scopes: Vec<&'a str>,
 }
 
+#[derive(Debug)]
 pub struct OAuthUser {
     pub access_token: String,
+    pub refresh_token: Option<String>,
 }
 
 #[derive(Debug)]
@@ -32,11 +34,14 @@ impl<'a, 'r> FromRequest<'a, 'r> for OAuthUser {
     type Error = OAuthError;
 
     fn from_request(request: &'a Request<'r>) -> Outcome<Self, (Status, Self::Error), ()> {
-        dbg!(request.cookies().get_private("access_token"));
         match request.cookies().get_private("access_token") {
             None => Outcome::Failure((Status::Unauthorized, OAuthError::MissingToken)),
             Some(cookie) => Outcome::Success(OAuthUser {
-                access_token: cookie.to_string(),
+                access_token: cookie.value().to_string(),
+                refresh_token: request
+                    .cookies()
+                    .get_private("refresh_token")
+                    .map(|cookie| cookie.value().to_string()),
             }),
         }
     }
@@ -93,12 +98,11 @@ pub fn login(
     access_cookie.set_same_site(SameSite::Lax);
     cookies.add_private(access_cookie);
     if token_message.refresh_token.is_some() {
-        cookies.add_private(Cookie::new(
-            "refresh_token",
-            token_message.refresh_token.unwrap(),
-        ));
+        let mut refresh_cookie = Cookie::new("refresh_token", token_message.refresh_token.unwrap());
+        refresh_cookie.set_same_site(SameSite::Lax);
+        cookies.add_private(refresh_cookie);
     }
-    Redirect::temporary("http://localhost:8000/secret")
+    Redirect::temporary(state.url_decode().unwrap())
 }
 
 #[get("/oauth/logout")]
