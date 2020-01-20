@@ -3,11 +3,6 @@ extern crate dotenv;
 #[macro_use]
 extern crate rocket;
 extern crate rocket_oauth2;
-
-use rocket::http::RawStr;
-use rocket::response::Redirect;
-use rocket::Request;
-use rocket::State;
 use rocket_oauth2::{OAuthConfiguration, OAuthUser};
 
 #[get("/")]
@@ -16,13 +11,13 @@ fn index() -> &'static str {
 }
 
 #[get("/secret")]
-fn secret(user: OAuthUser) -> &'static str {
+fn secret(_user: OAuthUser) -> &'static str {
     "Secret"
 }
 
 #[get("/secret")]
 fn secret_no_auth() -> &'static str {
-    "Uh oh"
+    panic!("This should never happen");
 }
 
 fn main() {
