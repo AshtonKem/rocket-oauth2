@@ -38,12 +38,12 @@ impl<'a, 'r> FromRequest<'a, 'r> for OAuthUser {
     }
 }
 
-pub fn redirect_to_oauth(config: &OAuthConfiguration) -> Redirect {
+pub fn redirect_to_oauth(req: &Request, config: &OAuthConfiguration) -> Redirect {
     let mut scopes = vec!["profile"];
     scopes.append(&mut config.extra_scopes.clone());
 
-    Redirect::to(format!("https://accounts.google.com/o/oauth2/v2/auth?scope={}&access_type=offline&include_granted_scopes=true&state=state_parameter_passthrough_value&redirect_uri={}&response_type=code&client_id={}",
-                         scopes.join(","), config.redirect_uri, config.client_id))
+    Redirect::to(format!("https://accounts.google.com/o/oauth2/v2/auth?scope={}&access_type=offline&include_granted_scopes=true&redirect_uri={}&response_type=code&client_id={}&state={}",
+                         scopes.join(","), config.redirect_uri, config.client_id, req.uri()))
 }
 
 #[derive(Deserialize, Debug)]
@@ -75,7 +75,7 @@ pub fn get_access_token(config: &OAuthConfiguration, code: String) -> String {
 #[catch(401)]
 pub fn not_authorized(req: &Request) -> Redirect {
     let config = req.guard::<State<OAuthConfiguration>>().unwrap();
-    redirect_to_oauth(&config)
+    redirect_to_oauth(req, &config)
 }
 
 #[get("/oauth/login?<code>")]
