@@ -15,7 +15,7 @@ pub struct OAuthUser {
 
 #[derive(Debug)]
 pub enum OAuthError {
-    Unauthenticated,
+    MissingToken,
 }
 
 impl<'a, 'r> FromRequest<'a, 'r> for OAuthUser {
@@ -23,7 +23,7 @@ impl<'a, 'r> FromRequest<'a, 'r> for OAuthUser {
 
     fn from_request(request: &'a Request<'r>) -> Outcome<Self, (Status, Self::Error), ()> {
         match request.cookies().get_private("access_token") {
-            None => Outcome::Failure((Status::Unauthorized, Unauthenticated)),
+            None => Outcome::Failure((Status::Unauthorized, OAuthError::MissingToken)),
             Some(cookie) => Outcome::Success(OAuthUser {
                 access_token: cookie.to_string(),
             }),
