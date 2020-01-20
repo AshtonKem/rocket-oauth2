@@ -8,4 +8,5 @@ edition = "2018"
 
 [dependencies]
 rocket = "0.4.2"
-reqwest = { version = "0.10", features = ["json"] }
+reqwest = { version = "0.10", features = ["json", "blocking"] }
+serde = { version = "1.0", features = ["derive"] }

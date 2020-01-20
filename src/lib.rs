@@ -1,14 +1,19 @@
+#![feature(proc_macro_hygiene, decl_macro)]
+#[macro_use]
+extern crate rocket;
+
+use rocket::http::RawStr;
 use rocket::http::Status;
 use rocket::request::FromRequest;
 use rocket::response::Redirect;
-use rocket::{Outcome, Request};
-use std::collections::HashMap;
+use rocket::{Outcome, Request, State};
+use serde::Deserialize;
 
-pub struct OAuthConfiguration {
+pub struct OAuthConfiguration<'a> {
     pub client_id: String,
     pub client_secret: String,
     pub redirect_uri: String,
-    pub extra_scopes: Vec<String>,
+    pub extra_scopes: Vec<&'a str>,
 }
 
 pub struct OAuthUser {
@@ -34,26 +39,47 @@ impl<'a, 'r> FromRequest<'a, 'r> for OAuthUser {
 }
 
 pub fn redirect_to_oauth(config: &OAuthConfiguration) -> Redirect {
-    Redirect::to(format!("https://accounts.google.com/o/oauth2/v2/auth?scope={}&access_type=offline&include_granted_scopes=true&state=state_parameter_passthrough_value&redirect_uri={}&response_type=code&client_id=${}",
-                         "fake-scope", config.redirect_uri, config.client_id))
+    let mut scopes = vec!["profile"];
+    scopes.append(&mut config.extra_scopes.clone());
+
+    Redirect::to(format!("https://accounts.google.com/o/oauth2/v2/auth?scope={}&access_type=offline&include_granted_scopes=true&state=state_parameter_passthrough_value&redirect_uri={}&response_type=code&client_id={}",
+                         scopes.join(","), config.redirect_uri, config.client_id))
 }
 
-pub async fn get_access_token(config: &OAuthConfiguration, code: String) -> String {
-    let resp: HashMap<String, String> = reqwest::Client::new()
-        .get("https://oauth2.googleapis.com/token")
-        .query(&[
+#[derive(Deserialize, Debug)]
+pub struct TokenMessage {
+    pub access_token: String,
+    pub expires_in: i32,
+}
+
+pub fn get_access_token(config: &OAuthConfiguration, code: String) -> String {
+    let response = reqwest::blocking::Client::new()
+        .post("https://oauth2.googleapis.com/token")
+        .header("Accept", "application/json")
+        .form(&[
             ("code", code),
             ("client_id", config.client_id.to_string()),
             ("client_secret", config.client_secret.to_string()),
             ("grant_type", "authorization_code".to_string()),
-            ("redirect_url", "https://example.com/oauth".to_string()),
+            ("redirect_uri", config.redirect_uri.to_string()),
         ])
-        .send()
-        .await
-        .unwrap()
-        .json::<HashMap<String, String>>()
-        .await
-        .unwrap();
+        .send();
 
-    resp.get("access_token").unwrap().to_string()
+    response
+        .unwrap()
+        .json::<TokenMessage>()
+        .unwrap()
+        .access_token
+}
+
+#[catch(401)]
+pub fn not_authorized(req: &Request) -> Redirect {
+    let config = req.guard::<State<OAuthConfiguration>>().unwrap();
+    redirect_to_oauth(&config)
+}
+
+#[get("/oauth/login?<code>")]
+pub fn login(config: State<OAuthConfiguration>, code: &RawStr) -> String {
+    let access_token = get_access_token(&config, code.url_decode().unwrap());
+    format!("Access token is {}", access_token)
 }
