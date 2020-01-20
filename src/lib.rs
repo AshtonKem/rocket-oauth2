@@ -45,7 +45,7 @@ pub fn redirect_to_oauth(req: &Request, config: &OAuthConfiguration) -> Redirect
     scopes.append(&mut config.extra_scopes.clone());
 
     Redirect::to(format!("https://accounts.google.com/o/oauth2/v2/auth?scope={}&access_type=offline&include_granted_scopes=true&redirect_uri={}&response_type=code&client_id={}&state={}",
-                         scopes.join(","), config.redirect_uri, config.client_id, req.uri()))
+                         scopes.join("%20"), config.redirect_uri, config.client_id, req.uri()))
 }
 
 #[derive(Deserialize, Debug)]
