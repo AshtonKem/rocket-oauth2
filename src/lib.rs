@@ -2,6 +2,8 @@
 #[macro_use]
 extern crate rocket;
 
+use rocket::http::Cookie;
+use rocket::http::Cookies;
 use rocket::http::RawStr;
 use rocket::http::Status;
 use rocket::request::FromRequest;
@@ -78,8 +80,20 @@ pub fn not_authorized(req: &Request) -> Redirect {
     redirect_to_oauth(req, &config)
 }
 
-#[get("/oauth/login?<code>")]
-pub fn login(config: State<OAuthConfiguration>, code: &RawStr) -> String {
+#[get("/oauth/login?<code>&<state>")]
+pub fn login(
+    mut cookies: Cookies,
+    config: State<OAuthConfiguration>,
+    code: &RawStr,
+    state: &RawStr,
+) -> Redirect {
     let access_token = get_access_token(&config, code.url_decode().unwrap());
-    format!("Access token is {}", access_token)
+    cookies.add_private(Cookie::new("access_token", access_token));
+    Redirect::to(state.url_decode().unwrap())
+}
+
+#[get("/oauth/logout")]
+pub fn logout(mut cookies: Cookies) -> Redirect {
+    cookies.remove_private(Cookie::named("access_token"));
+    Redirect::to("/")
 }

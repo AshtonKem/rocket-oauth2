@@ -29,7 +29,10 @@ fn main() {
             extra_scopes: vec![],
             redirect_uri: "http://localhost:8000/oauth/login".to_string(),
         })
-        .mount("/", routes![index, secret, rocket_oauth2::login])
+        .mount(
+            "/",
+            routes![index, secret, rocket_oauth2::login, rocket_oauth2::logout],
+        )
         .register(catchers![rocket_oauth2::not_authorized])
         .launch();
 }
