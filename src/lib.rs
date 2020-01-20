@@ -5,6 +5,7 @@ extern crate rocket;
 use rocket::http::Cookie;
 use rocket::http::Cookies;
 use rocket::http::RawStr;
+use rocket::http::SameSite;
 use rocket::http::Status;
 use rocket::request::FromRequest;
 use rocket::response::Redirect;
@@ -31,6 +32,7 @@ impl<'a, 'r> FromRequest<'a, 'r> for OAuthUser {
     type Error = OAuthError;
 
     fn from_request(request: &'a Request<'r>) -> Outcome<Self, (Status, Self::Error), ()> {
+        dbg!(request.cookies().get_private("access_token"));
         match request.cookies().get_private("access_token") {
             None => Outcome::Failure((Status::Unauthorized, OAuthError::MissingToken)),
             Some(cookie) => Outcome::Success(OAuthUser {
@@ -44,17 +46,18 @@ pub fn redirect_to_oauth(req: &Request, config: &OAuthConfiguration) -> Redirect
     let mut scopes = vec!["profile"];
     scopes.append(&mut config.extra_scopes.clone());
 
-    Redirect::to(format!("https://accounts.google.com/o/oauth2/v2/auth?scope={}&access_type=offline&include_granted_scopes=true&redirect_uri={}&response_type=code&client_id={}&state={}",
-                         scopes.join("%20"), config.redirect_uri, config.client_id, req.uri()))
+    Redirect::temporary(format!("https://accounts.google.com/o/oauth2/v2/auth?scope={}&access_type=offline&include_granted_scopes=true&redirect_uri={}&response_type=code&client_id={}&state={}",
+                                scopes.join("%20"), config.redirect_uri, config.client_id, req.uri()))
 }
 
 #[derive(Deserialize, Debug)]
-pub struct TokenMessage {
-    pub access_token: String,
-    pub expires_in: i32,
+struct TokenMessage {
+    access_token: String,
+    expires_in: i32,
+    refresh_token: Option<String>,
 }
 
-pub fn get_access_token(config: &OAuthConfiguration, code: String) -> String {
+fn get_access_token(config: &OAuthConfiguration, code: String) -> TokenMessage {
     let response = reqwest::blocking::Client::new()
         .post("https://oauth2.googleapis.com/token")
         .header("Accept", "application/json")
@@ -67,11 +70,9 @@ pub fn get_access_token(config: &OAuthConfiguration, code: String) -> String {
         ])
         .send();
 
-    response
-        .unwrap()
-        .json::<TokenMessage>()
-        .unwrap()
-        .access_token
+    let body = response.unwrap().json::<TokenMessage>().unwrap();
+
+    body
 }
 
 #[catch(401)]
@@ -87,13 +88,21 @@ pub fn login(
     code: &RawStr,
     state: &RawStr,
 ) -> Redirect {
-    let access_token = get_access_token(&config, code.url_decode().unwrap());
-    cookies.add_private(Cookie::new("access_token", access_token));
-    Redirect::to(state.url_decode().unwrap())
+    let token_message = get_access_token(&config, code.url_decode().unwrap());
+    let mut access_cookie = Cookie::new("access_token", token_message.access_token);
+    access_cookie.set_same_site(SameSite::Lax);
+    cookies.add_private(access_cookie);
+    if token_message.refresh_token.is_some() {
+        cookies.add_private(Cookie::new(
+            "refresh_token",
+            token_message.refresh_token.unwrap(),
+        ));
+    }
+    Redirect::temporary("http://localhost:8000/secret")
 }
 
 #[get("/oauth/logout")]
 pub fn logout(mut cookies: Cookies) -> Redirect {
     cookies.remove_private(Cookie::named("access_token"));
-    Redirect::to("/")
+    Redirect::temporary("/")
 }
