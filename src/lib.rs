@@ -34,14 +34,15 @@ impl<'a, 'r> FromRequest<'a, 'r> for OAuthUser {
     type Error = OAuthError;
 
     fn from_request(request: &'a Request<'r>) -> Outcome<Self, (Status, Self::Error), ()> {
+        let refresh_token = request
+            .cookies()
+            .get_private("refresh_token")
+            .map(|cookie| cookie.value().to_string());
         match request.cookies().get_private("access_token") {
             None => Outcome::Failure((Status::Unauthorized, OAuthError::MissingToken)),
             Some(cookie) => Outcome::Success(OAuthUser {
                 access_token: cookie.value().to_string(),
-                refresh_token: request
-                    .cookies()
-                    .get_private("refresh_token")
-                    .map(|cookie| cookie.value().to_string()),
+                refresh_token,
             }),
         }
     }
