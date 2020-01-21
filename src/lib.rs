@@ -126,5 +126,6 @@ pub fn login(
 #[get("/oauth/logout")]
 pub fn logout(mut cookies: Cookies) -> Redirect {
     cookies.remove_private(Cookie::named("access_token"));
+    cookies.remove_private(Cookie::named("refresh_token"));
     Redirect::temporary("/")
 }
