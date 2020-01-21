@@ -3,6 +3,9 @@ name = "rocket-oauth2"
 version = "0.0.1"
 authors = ["Ashton Kemerling <ashtonkemerling@gmail.com>"]
 edition = "2018"
+license-file = "LICENSE"
+repository = "https://github.com/AshtonKem/rocket-oauth2"
+documentation = "Readme.md"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
