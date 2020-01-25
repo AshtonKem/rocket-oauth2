@@ -54,7 +54,7 @@ fn secret(_user: OAuthUser) -> &'static str {
 
 This crate is ... very incomplete. Here is an incomplete list of things I would like to see done to this crate.
 
-1. Tests
+1. More tests.
 2. Hardening against errors. The `unwrap` function is used far too liberally currently.
 3. Multiple OAuth providers, with pluggable strategies
 4. Pluggable session storage strategies
