@@ -81,23 +81,6 @@ fn get_token_message(config: &OAuthConfiguration, code: String) -> TokenMessage 
     body
 }
 
-fn refresh_access_token(config: &OAuthConfiguration, refresh_token: String) -> String {
-    let response = reqwest::blocking::Client::new()
-        .post("https://oauth2.googleapis.com/token")
-        .header("Accept", "application/json")
-        .form(&[
-            ("refresh_token", refresh_token),
-            ("client_id", config.client_id.to_string()),
-            ("client_secret", config.client_secret.to_string()),
-            ("grant_type", "authorization_code".to_string()),
-        ])
-        .send();
-
-    let body = response.unwrap().json::<TokenMessage>().unwrap();
-
-    body.access_token
-}
-
 #[catch(401)]
 pub fn not_authorized(req: &Request) -> Redirect {
     let config = req.guard::<State<OAuthConfiguration>>().unwrap();
