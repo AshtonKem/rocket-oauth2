@@ -15,7 +15,7 @@ fn secret(_user: OAuthUser) -> &'static str {
     "Secret"
 }
 
-#[get("/secret")]
+#[get("/secret", rank = 2)]
 fn secret_no_auth() -> &'static str {
     panic!("This should never happen");
 }
@@ -31,7 +31,13 @@ fn main() {
         })
         .mount(
             "/",
-            routes![index, secret, rocket_oauth2::login, rocket_oauth2::logout],
+            routes![
+                index,
+                secret,
+                secret_no_auth,
+                rocket_oauth2::login,
+                rocket_oauth2::logout
+            ],
         )
         .register(catchers![rocket_oauth2::not_authorized])
         .launch();
