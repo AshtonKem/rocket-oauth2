@@ -2,3 +2,6 @@ language: rust
 rust:
   - beta
   - nightly
+matrix:
+  allow_failures:
+    - rust: beta
