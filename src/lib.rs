@@ -2,6 +2,9 @@
 #[macro_use]
 extern crate rocket;
 
+#[cfg(test)]
+extern crate mockito;
+
 use crate::providers::OauthProvider;
 use rocket::http::Cookie;
 use rocket::http::Cookies;

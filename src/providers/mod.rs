@@ -1,11 +1,11 @@
 use reqwest::Error;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 mod google;
 
 pub use google::GoogleProvider;
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Serialize, PartialEq)]
 pub struct TokenMessage {
     pub access_token: String,
     pub expires_in: i32,

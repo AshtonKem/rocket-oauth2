@@ -1,5 +1,6 @@
-use crate::providers::{OauthProvider, TokenMessage};
 use reqwest::Error;
+
+use crate::providers::{OauthProvider, TokenMessage};
 
 pub struct GoogleProvider {}
 
@@ -15,7 +16,8 @@ impl OauthProvider for GoogleProvider {
         total_scopes.append(&mut scopes.clone());
 
         format!("https://accounts.google.com/o/oauth2/v2/auth?scope={}&access_type=offline&include_granted_scopes=true&redirect_uri={}&response_type=code&client_id={}&state={}",
-                total_scopes.join("%20"), redirect_uri, client_id, original_uri)
+                total_scopes.join("%20"),
+                redirect_uri, client_id, original_uri)
     }
 
     fn get_tokens(
@@ -25,8 +27,15 @@ impl OauthProvider for GoogleProvider {
         client_secret: &String,
         redirect_uri: &String,
     ) -> Result<TokenMessage, Error> {
+        #[cfg(not(test))]
+        let base_url = "https://oauth2.googleapis.com";
+        #[cfg(test)]
+        let base_url = &mockito::server_url();
+
+        let url = format!("{}/token", base_url);
+        dbg!(&url);
         let response = reqwest::blocking::Client::new()
-            .post("https://oauth2.googleapis.com/token")
+            .post(url.as_str())
             .header("Accept", "application/json")
             .form(&[
                 ("code", code),
@@ -43,7 +52,9 @@ impl OauthProvider for GoogleProvider {
 
 #[cfg(test)]
 mod tests {
-    use crate::providers::{GoogleProvider, OauthProvider};
+    use mockito::mock;
+
+    use crate::providers::{GoogleProvider, OauthProvider, TokenMessage};
 
     #[test]
     fn test_redirect() {
@@ -56,7 +67,7 @@ mod tests {
                 &"redirect".to_string(),
                 &"original".to_string(),
                 &"client_id".to_string(),
-                &scopes
+                &scopes,
             )
         );
     }
@@ -72,8 +83,35 @@ mod tests {
                 &"redirect".to_string(),
                 &"original".to_string(),
                 &"client_id".to_string(),
-                &scopes
+                &scopes,
             )
+        );
+    }
+
+    #[test]
+    fn test_get_token() {
+        let message = TokenMessage {
+            access_token: "access_token".to_string(),
+            expires_in: 50,
+            refresh_token: Option::Some("refresh_token".to_string()),
+        };
+        let body = serde_json::to_string(&message).unwrap();
+        let _m = mock("POST", "/token")
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(body)
+            .create();
+        let provider = GoogleProvider {};
+        assert_eq!(
+            message,
+            provider
+                .get_tokens(
+                    &"redirect".to_string(),
+                    &"original".to_string(),
+                    &"client_id".to_string(),
+                    &"redirect_url".to_string(),
+                )
+                .unwrap()
         );
     }
 }
