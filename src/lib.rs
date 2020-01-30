@@ -2,6 +2,7 @@
 #[macro_use]
 extern crate rocket;
 
+use crate::providers::OauthProvider;
 use rocket::http::Cookie;
 use rocket::http::Cookies;
 use rocket::http::RawStr;
@@ -12,11 +13,33 @@ use rocket::response::Redirect;
 use rocket::{Outcome, Request, State};
 use serde::Deserialize;
 
+pub mod providers;
+
 pub struct OAuthConfiguration<'a> {
     pub client_id: String,
     pub client_secret: String,
     pub redirect_uri: String,
     pub extra_scopes: Vec<&'a str>,
+    provider: Box<dyn OauthProvider>,
+}
+
+impl<'a> OAuthConfiguration<'a> {
+    pub fn new(
+        // These are strings because they're highly likely to come from dotenv
+        client_id: String,
+        client_secret: String,
+        redirect_uri: &str,
+        extra_scopes: std::vec::Vec<&'a str>,
+        provider: impl OauthProvider + 'static,
+    ) -> OAuthConfiguration<'a> {
+        OAuthConfiguration {
+            client_id: client_id.to_string(),
+            client_secret: client_secret.to_string(),
+            redirect_uri: redirect_uri.to_string(),
+            extra_scopes,
+            provider: Box::new(provider),
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -49,11 +72,14 @@ impl<'a, 'r> FromRequest<'a, 'r> for OAuthUser {
 }
 
 pub fn redirect_to_oauth(req: &Request, config: &OAuthConfiguration) -> Redirect {
-    let mut scopes = vec!["profile"];
-    scopes.append(&mut config.extra_scopes.clone());
+    let url = config.provider.get_redirect(
+        &config.redirect_uri,
+        &req.uri().to_string(),
+        &config.client_id,
+        &config.extra_scopes,
+    );
 
-    Redirect::temporary(format!("https://accounts.google.com/o/oauth2/v2/auth?scope={}&access_type=offline&include_granted_scopes=true&redirect_uri={}&response_type=code&client_id={}&state={}",
-                                scopes.join("%20"), config.redirect_uri, config.client_id, req.uri()))
+    Redirect::temporary(url)
 }
 
 #[derive(Deserialize, Debug)]
@@ -61,24 +87,6 @@ struct TokenMessage {
     access_token: String,
     expires_in: i32,
     refresh_token: Option<String>,
-}
-
-fn get_token_message(config: &OAuthConfiguration, code: String) -> TokenMessage {
-    let response = reqwest::blocking::Client::new()
-        .post("https://oauth2.googleapis.com/token")
-        .header("Accept", "application/json")
-        .form(&[
-            ("code", code),
-            ("client_id", config.client_id.to_string()),
-            ("client_secret", config.client_secret.to_string()),
-            ("grant_type", "authorization_code".to_string()),
-            ("redirect_uri", config.redirect_uri.to_string()),
-        ])
-        .send();
-
-    let body = response.unwrap().json::<TokenMessage>().unwrap();
-
-    body
 }
 
 #[catch(401)]
@@ -94,7 +102,15 @@ pub fn login(
     code: &RawStr,
     state: &RawStr,
 ) -> Redirect {
-    let token_message = get_token_message(&config, code.url_decode().unwrap());
+    let token_message = config
+        .provider
+        .get_tokens(
+            &code.to_string(),
+            &config.client_id,
+            &config.client_secret,
+            &config.redirect_uri,
+        )
+        .unwrap();
     let mut access_cookie = Cookie::new("access_token", token_message.access_token);
     access_cookie.set_same_site(SameSite::Lax);
     cookies.add_private(access_cookie);

@@ -3,6 +3,8 @@ extern crate dotenv;
 #[macro_use]
 extern crate rocket;
 extern crate rocket_oauth2;
+
+use rocket_oauth2::providers::GoogleProvider;
 use rocket_oauth2::{OAuthConfiguration, OAuthUser};
 
 #[get("/")]
@@ -23,12 +25,13 @@ fn secret_no_auth() -> &'static str {
 fn main() {
     dotenv::dotenv().ok();
     rocket::ignite()
-        .manage(OAuthConfiguration {
-            client_id: dotenv::var("CLIENT_ID").unwrap(),
-            client_secret: dotenv::var("CLIENT_SECRET").unwrap(),
-            extra_scopes: vec![],
-            redirect_uri: "http://localhost:8000/oauth/login".to_string(),
-        })
+        .manage(OAuthConfiguration::new(
+            dotenv::var("CLIENT_ID").unwrap(),
+            dotenv::var("CLIENT_SECRET").unwrap(),
+            "http://localhost:8000/oauth/login",
+            vec![],
+            GoogleProvider {},
+        ))
         .mount(
             "/",
             routes![
