@@ -2,11 +2,13 @@
 #[macro_use]
 extern crate rocket;
 extern crate rocket_oauth2;
+
 use rocket::http::Cookie;
 use rocket::http::Status;
 use rocket::local::Client;
 use rocket::Rocket;
 
+use rocket_oauth2::providers::GoogleProvider;
 use rocket_oauth2::{OAuthConfiguration, OAuthUser};
 
 #[get("/access_token")]
@@ -22,13 +24,14 @@ fn secret_no_auth() -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
+
     #[test]
     fn test_secret_unauthenticated() {
         let client = Client::new(main()).expect("Valid rocket instance");
         let response = client.get("/access_token").dispatch();
         assert_eq!(response.status(), Status::TemporaryRedirect);
         assert_eq!(response.headers().get("Location").last().unwrap(),
-            "https://accounts.google.com/o/oauth2/v2/auth?scope=profile&access_type=offline&include_granted_scopes=true&redirect_uri=http://localhost:8000/oauth/login&response_type=code&client_id=client-id&state=/access_token");
+                   "https://accounts.google.com/o/oauth2/v2/auth?scope=profile&access_type=offline&include_granted_scopes=true&redirect_uri=http://localhost:8000/oauth/login&response_type=code&client_id=client-id&state=/access_token");
     }
 
     #[test]
@@ -45,12 +48,13 @@ mod tests {
 
 fn main() -> Rocket {
     rocket::ignite()
-        .manage(OAuthConfiguration {
-            client_id: "client-id".to_string(),
-            client_secret: "client-secret".to_string(),
-            extra_scopes: vec![],
-            redirect_uri: "http://localhost:8000/oauth/login".to_string(),
-        })
+        .manage(OAuthConfiguration::new(
+            "client-id".to_string(),
+            "client-secret".to_string(),
+            "http://localhost:8000/oauth/login",
+            vec![],
+            GoogleProvider {},
+        ))
         .mount(
             "/",
             routes![
