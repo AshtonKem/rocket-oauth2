@@ -1,3 +1,8 @@
+//! # Rocket OAuth2
+//! Rocket Oauth2 provides guards and helper function to integrate [Rocket](https://rocket.rs)
+//! with OAuth2
+//!
+//! At this point in time, rocket-oauth2 is in alpha stage, use at your own risk.
 #![feature(proc_macro_hygiene, decl_macro)]
 #[macro_use]
 extern crate rocket;
